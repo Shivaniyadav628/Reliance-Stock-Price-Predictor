@@ -1,0 +1,4 @@
+Candidate,Validation_MAE_Return,Parameters
+1,0.011523845605552197,"{'n_estimators': 300, 'max_depth': 2, 'learning_rate': 0.03}"
+2,0.01156703382730484,"{'n_estimators': 500, 'max_depth': 2, 'learning_rate': 0.03}"
+3,0.011644884943962097,"{'n_estimators': 300, 'max_depth': 3, 'learning_rate': 0.03}"
