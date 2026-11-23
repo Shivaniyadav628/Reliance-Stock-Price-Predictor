@@ -1010,6 +1010,7 @@ Users should conduct independent research and consult qualified financial profes
 
 ## 21. Author and Repository
 
+Author Name : Shivani Gundemoni
 **Project Name:** Reliance Stock Price Predictor
 
 **GitHub Repository:**  
