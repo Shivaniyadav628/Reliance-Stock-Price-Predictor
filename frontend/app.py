@@ -7,6 +7,8 @@ from pathlib import Path
 import html
 import re
 
+from model_inference import predict_next_close
+
 # ============================================================
 # 1. PAGE CONFIGURATION
 # ============================================================
@@ -686,15 +688,13 @@ if "Date" not in stock.columns or "Close" not in stock.columns:
     st.error("Stock dataset must contain Date and Close columns.")
     st.stop()
 
+
 stock["Date"] = pd.to_datetime(
     stock["Date"],
     errors="coerce",
     utc=True
-)
+).dt.tz_convert("Asia/Kolkata").dt.tz_localize(None)
 
-# Convert stock dates to timezone-naive values for consistent display
-# and Plotly comparisons.
-stock["Date"] = stock["Date"].dt.tz_convert(None)
 
 for col in [
     "Open",
@@ -2424,6 +2424,99 @@ elif page == "Model Performance":
 elif page == "Historical Predictions":
 
     section_title("Historical Prediction Analysis")
+
+    # --------------------------------------------------------
+    # Model inference using the saved Market + News LSTM
+    # --------------------------------------------------------
+
+    section_title("Run Market + News LSTM Prediction")
+
+    st.write(
+        "Run the saved PyTorch LSTM model using the latest available "
+        "market and news-sentiment records in the fusion dataset."
+    )
+
+    if st.button("Run Model Prediction", type="primary", key="run_lstm_prediction"):
+
+        try:
+            with st.spinner("Loading model and preparing the latest 60-session sequence..."):
+                live_result = predict_next_close(BASE_DIR)
+
+            predicted_close = float(live_result["predicted_close"])
+            last_actual_close = float(live_result["last_actual_close"])
+            latest_data_date = pd.to_datetime(
+                live_result["latest_data_date"],
+                errors="coerce"
+            )
+            sequence_length = int(live_result["sequence_length"])
+            model_name = str(live_result["model_name"])
+
+            if pd.isna(latest_data_date):
+                raise ValueError("The model returned an invalid latest data date.")
+
+            st.session_state["reliance_lstm_prediction"] = {
+                "predicted_close": predicted_close,
+                "last_actual_close": last_actual_close,
+                "latest_data_date": latest_data_date,
+                "sequence_length": sequence_length,
+                "model_name": model_name
+            }
+
+        except Exception as exc:
+            st.error(f"Prediction could not be generated: {exc}")
+
+    saved_prediction = st.session_state.get("reliance_lstm_prediction")
+
+    if saved_prediction is not None:
+
+        predicted_close = saved_prediction["predicted_close"]
+        last_actual_close = saved_prediction["last_actual_close"]
+        latest_data_date = saved_prediction["latest_data_date"]
+
+        change_amount = predicted_close - last_actual_close
+        change_percent = (
+            change_amount / last_actual_close * 100
+            if last_actual_close != 0 else 0.0
+        )
+
+        p1, p2, p3 = st.columns(3)
+
+        with p1:
+            metric_card(
+                "MODEL-PREDICTED CLOSING PRICE",
+                money(predicted_close),
+                "Market + News LSTM output"
+            )
+
+        with p2:
+            metric_card(
+                "LAST ACTUAL CLOSING PRICE",
+                money(last_actual_close),
+                latest_data_date.strftime("%d %b %Y")
+            )
+
+        with p3:
+            metric_card(
+                "PREDICTED CHANGE VS LAST CLOSE",
+                f"{change_amount:+,.2f}",
+                f"{change_percent:+.2f}% (model estimate)"
+            )
+
+        st.caption(
+            f"Model: {saved_prediction['model_name']} | "
+            f"Input sequence: {saved_prediction['sequence_length']} trading sessions | "
+            f"Latest input-data date: {latest_data_date:%d %B %Y}"
+        )
+
+        notice(
+            "Historical-data limitation",
+            "This output is calculated from the latest records included in the "
+            "project's saved dataset. It is not a live market quote. Update the "
+            "stock and news datasets before treating it as a forecast for a newer session.",
+            "warning"
+        )
+
+    st.divider()
 
     required = [
         "Date",
